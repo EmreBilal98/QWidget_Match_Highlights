@@ -1,0 +1,72 @@
+# ==========================================
+# C++ / Derleme Çıktıları
+# ==========================================
+*.o
+*.obj
+*.d
+*.out
+*.exe
+*.app
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Statik ve Dinamik Kütüphaneler
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+
+# ==========================================
+# CMake Önbelleği ve Yapılandırma Klasörleri
+# ==========================================
+CMakeCache.txt
+CMakeFiles/
+CMakeCheckOutputs/
+cmake_install.cmake
+Makefile
+targets.make
+.cmake/
+
+# Varsayılan Qt Creator / CMake derleme klasörleri (build)
+build/
+build-*/
+CMakeStaging/
+
+# ==========================================
+# Qt / Qt Creator Spesifik Dosyalar
+# ==========================================
+*.user
+*.user.*
+.qtc/
+
+# Kendi kendine oluşan Qt kaynak kodları (MOC, UIC, RCC)
+**/object_script.*
+**/moc_*.cpp
+**/ui_*.h
+**/qrc_*.cpp
+
+# ==========================================
+# PROJEYE ÖZEL: Büyük Video ve Medya Dosyaları
+# ==========================================
+# Test için indirdiğin büyük maç videoları GitHub'a gitmemeli (Max 100MB sınırı var)
+*.mp4
+*.avi
+*.mkv
+*.ts
+*.m3u8
+
+# FFmpeg tarafından kesilen çıktı videoları
+*kesilmis.mp4
+/output_videos/
+
+# ==========================================
+# İşletim Sistemi ve Genel Dosyalar
+# ==========================================
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
