@@ -6,10 +6,27 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    // MainWindow içinde örnek kullanım:
-    videocutterwidget *cutterWidget = new videocutterwidget(this);
+
+    cutterWidget = new videocutterwidget(this);
+    m_server  = new  Server(this);
     ui->videoLayout->addWidget(cutterWidget);
 
+    connect(ui->search_button,&QPushButton::clicked,this,&MainWindow::searchClicked);
+    connect(m_server,&Server::getTimeStamps,this,&MainWindow::getTimeStamps);
+    ui->date_lineEdit->setInputMask("99/99/99;_");
+
+
+
+
+}
+
+MainWindow::~MainWindow()
+{
+    delete ui;
+}
+
+void MainWindow::searchClicked()
+{
     // DB'den "00:15:30" (15. dakika 30. saniye) verisi geldiğini varsayalım
     QString orjinalVideo = "/home/bilal/bilal/qt_projects/match_highlights/match_highlights/halisaha_maci.mp4";
     //QString dbZamani = "00:15:30";
@@ -19,18 +36,33 @@ MainWindow::MainWindow(QWidget *parent)
 
     cutterWidget->setSourceVideoPath(orjinalVideo);
 
-    // 2. Veritabanından geliyormuş gibi sahte bir liste oluştur
-    QList<VideoRecord> dbVerileri;
-    dbVerileri.append(VideoRecord{"1. Kayıt", "00:05:00"});
-    dbVerileri.append(VideoRecord{"2. Kayıt", "00:12:30"});
-    dbVerileri.append(VideoRecord{"3. Kayıt", "00:22:15"});
-    dbVerileri.append(VideoRecord{"4. Kayıt", "00:45:00"});
+    QDate tarihObjesi = QDate::fromString(ui->date_lineEdit->text(), "dd/MM/yy");
 
-    // 3. Modeli tabloya yükle
+    if (!tarihObjesi.isValid()) {
+        qWarning() << "Geçersiz tarih formatı!";
+        return;
+    }
+
+    QString temizTarih = tarihObjesi.toString("d/M/yy");
+
+    QString match_datetime = QString("%1 %2")
+                                 .arg(temizTarih)
+                                 .arg(ui->time_spinbox->value());
+
+    qInfo() << match_datetime;
+    m_server->serverRequest(1,ui->pitch_spinbox->value(),match_datetime);
+
+}
+
+void MainWindow::getTimeStamps(QStringList datetimelist)
+{
+    dbVerileri.clear();
+    int i=0;
+    foreach (QString datetime, datetimelist) {
+        dbVerileri.append(VideoRecord{QString("%1. Kayıt").arg(++i), datetime});
+    }
+
     cutterWidget->loadRecordsFromDb(dbVerileri);
 }
 
-MainWindow::~MainWindow()
-{
-    delete ui;
-}
+
