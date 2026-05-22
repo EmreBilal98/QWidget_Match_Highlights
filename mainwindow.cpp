@@ -13,6 +13,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->search_button,&QPushButton::clicked,this,&MainWindow::searchClicked);
     connect(m_server,&Server::getTimeStamps,this,&MainWindow::getTimeStamps);
+    connect(m_server,&Server::getVideoUrl,this,&MainWindow::getVideoUrl);
     ui->date_lineEdit->setInputMask("99/99/99;_");
 
 
@@ -28,13 +29,13 @@ MainWindow::~MainWindow()
 void MainWindow::searchClicked()
 {
     // DB'den "00:15:30" (15. dakika 30. saniye) verisi geldiğini varsayalım
-    QString orjinalVideo = "/home/bilal/bilal/qt_projects/match_highlights/match_highlights/halisaha_maci.mp4";
+    //QString orjinalVideo = "/home/bilal/bilal/qt_projects/match_highlights/match_highlights/halisaha_maci.mp4";
     //QString dbZamani = "00:15:30";
 
     // İşlemi başlat (Arka planda kesip bitince widget içinde oynatacaktır)
     //cutterWidget->playMainVideo(orjinalVideo);
 
-    cutterWidget->setSourceVideoPath(orjinalVideo);
+    //cutterWidget->setSourceVideoPath(orjinalVideo);
 
     QDate tarihObjesi = QDate::fromString(ui->date_lineEdit->text(), "dd/MM/yy");
 
@@ -63,6 +64,12 @@ void MainWindow::getTimeStamps(QStringList datetimelist)
     }
 
     cutterWidget->loadRecordsFromDb(dbVerileri);
+}
+
+void MainWindow::getVideoUrl(QString videoUrl)
+{
+    qInfo()<<"url:"<<videoUrl;
+    cutterWidget->setSourceVideoPath(videoUrl);
 }
 
 

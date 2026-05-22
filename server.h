@@ -25,10 +25,12 @@ private slots:
 
 signals:
     void getTimeStamps(QStringList datetimelist);
+    void getVideoUrl(QString videoUrl);
 
 private:
     QNetworkAccessManager manager;
     QStringList m_dateTimeList;
+    QString m_videoUrl;
 };
 
 #endif // SERVER_H

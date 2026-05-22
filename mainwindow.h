@@ -22,6 +22,7 @@ public:
 private slots:
     void searchClicked();
     void getTimeStamps(QStringList datetimelist);
+    void getVideoUrl(QString videoUrl);
 
 private:
     Ui::MainWindow *ui;

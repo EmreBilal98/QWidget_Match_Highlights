@@ -44,6 +44,10 @@ void Server::serverReply(QNetworkReply *reply)
                     QString timestamp = obj["datetime_from_st"].toString();
                     m_dateTimeList.append(timestamp);
                 }
+
+                if (obj.contains("video_url") && obj["video_url"].isString()) {
+                    m_videoUrl = obj["video_url"].toString();
+                }
             }
         }
 
@@ -52,6 +56,13 @@ void Server::serverReply(QNetworkReply *reply)
         }
         else{
             qWarning() << "bu saate ait kayıt yok!";
+        }
+
+        if(!m_videoUrl.isEmpty()){
+            emit getVideoUrl(m_videoUrl);
+        }
+        else{
+            qWarning() << "bu saate ait video kaydı yok!";
         }
 
     } else {
