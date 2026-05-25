@@ -1,6 +1,10 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+#define RecordPage 0
+#define LoginPage  1
+#define SignUpPage 2
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -12,8 +16,14 @@ MainWindow::MainWindow(QWidget *parent)
     ui->videoLayout->addWidget(cutterWidget);
 
     connect(ui->search_button,&QPushButton::clicked,this,&MainWindow::searchClicked);
+    connect(ui->btnLogIn,&QPushButton::clicked,this,&MainWindow::loginClicked);
+    connect(ui->btnSignUp,&QPushButton::clicked,this,&MainWindow::SignUpClicked);
+    connect(ui->btnSuSignUp,&QPushButton::clicked,this,&MainWindow::suSignUpClicked);
+    connect(ui->btnsuLogIn,&QPushButton::clicked,this,&MainWindow::suLoginClicked);
     connect(m_server,&Server::getTimeStamps,this,&MainWindow::getTimeStamps);
     connect(m_server,&Server::getVideoUrl,this,&MainWindow::getVideoUrl);
+    connect(m_server,&Server::getToken,this,&MainWindow::getToken);
+    connect(m_server,&Server::getName,this,&MainWindow::getName);
     ui->date_lineEdit->setInputMask("99/99/99;_");
 
 
@@ -28,15 +38,6 @@ MainWindow::~MainWindow()
 
 void MainWindow::searchClicked()
 {
-    // DB'den "00:15:30" (15. dakika 30. saniye) verisi geldiğini varsayalım
-    //QString orjinalVideo = "/home/bilal/bilal/qt_projects/match_highlights/match_highlights/halisaha_maci.mp4";
-    //QString dbZamani = "00:15:30";
-
-    // İşlemi başlat (Arka planda kesip bitince widget içinde oynatacaktır)
-    //cutterWidget->playMainVideo(orjinalVideo);
-
-    //cutterWidget->setSourceVideoPath(orjinalVideo);
-
     QDate tarihObjesi = QDate::fromString(ui->date_lineEdit->text(), "dd/MM/yy");
 
     if (!tarihObjesi.isValid()) {
@@ -55,6 +56,29 @@ void MainWindow::searchClicked()
 
 }
 
+void MainWindow::loginClicked()
+{
+    m_server->loginRequest(ui->lineUsername->text(),ui->linePassword->text());
+}
+
+void MainWindow::SignUpClicked()
+{
+    ui->stackedWidget->setCurrentIndex(SignUpPage);
+}
+
+void MainWindow::suLoginClicked()
+{
+    ui->stackedWidget->setCurrentIndex(LoginPage);
+}
+
+void MainWindow::suSignUpClicked()
+{
+    if(ui->lineEdit_suPass->text() == ui->lineEdit_suPassVerify->text()){
+        m_server->SignUpRequest(ui->lineEdit_suUsername->text(),ui->lineEdit_suEmail->text(),
+                                ui->spinBox_pCount->value(),ui->lineEdit_suPass->text());
+    }
+}
+
 void MainWindow::getTimeStamps(QStringList datetimelist)
 {
     dbVerileri.clear();
@@ -70,6 +94,22 @@ void MainWindow::getVideoUrl(QString videoUrl)
 {
     qInfo()<<"url:"<<videoUrl;
     cutterWidget->setSourceVideoPath(videoUrl);
+}
+
+void MainWindow::getToken(QString token)
+{
+    m_token=token;
+    qInfo()<<"giriş başarılı";
+    ui->stackedWidget->setCurrentIndex(RecordPage);
+}
+
+void MainWindow::getName(QString name)
+{
+    qInfo()<<"isim"<<name;
+    if(name==ui->lineEdit_suUsername->text()){
+        qInfo()<<"kayıt başarılı";
+        ui->stackedWidget->setCurrentIndex(LoginPage);
+    }
 }
 
 

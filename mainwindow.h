@@ -21,13 +21,20 @@ public:
 
 private slots:
     void searchClicked();
+    void loginClicked();
+    void SignUpClicked();
+    void suLoginClicked();
+    void suSignUpClicked();
     void getTimeStamps(QStringList datetimelist);
     void getVideoUrl(QString videoUrl);
+    void getToken(QString token);
+    void getName(QString name);
 
 private:
     Ui::MainWindow *ui;
     QList<VideoRecord> dbVerileri;
     videocutterwidget *cutterWidget;
     Server *m_server;
+    QString m_token;
 };
 #endif // MAINWINDOW_H
