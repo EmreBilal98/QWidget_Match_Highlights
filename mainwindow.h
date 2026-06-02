@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QDir>
 #include "videocutterwidget.h"
 #include "server.h"
 
@@ -29,6 +30,7 @@ private slots:
     void getVideoUrl(QString videoUrl);
     void getToken(QString token);
     void getName(QString name);
+    void getId(int id,int pitchCount);
 
 private:
     Ui::MainWindow *ui;
@@ -36,5 +38,6 @@ private:
     videocutterwidget *cutterWidget;
     Server *m_server;
     QString m_token;
+    int m_id;
 };
 #endif // MAINWINDOW_H

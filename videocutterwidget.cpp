@@ -122,13 +122,27 @@ void videocutterwidget::processNextInQueue()
 
     // Sıradaki kaydı al (Kuyruktan çıkar)
     VideoRecord currentRecord = m_processingQueue.dequeue();
+    qInfo()<<"tiimestamp::"<<currentRecord.timestamp;
     QString startTime = calculateStartTime(currentRecord.timestamp);
 
     // Çıktı dosya adı formatı: örn. "Kayit_1_kesilmis.mp4"
     QFileInfo fileInfo(m_sourceVideoPath);
+    qInfo()<<"mmy path:"<<m_sourceVideoPath;
     QString cleanId = currentRecord.id;
     cleanId.replace(" ", "_").replace(".", "");
-    QString outputPath = fileInfo.absolutePath() + "/" + cleanId + "_kesilmis.mp4";
+
+    qInfo()<<cleanId<<"-"<<currentRecord.timestamp;
+    QDateTime dateTime = QDateTime::fromString(currentRecord.timestamp, "d/M/yy hh:mm:ss");
+    if (!dateTime.isValid()) {
+        qWarning() << "Hatalı zaman formatı:" << currentRecord.timestamp;
+    }
+    QString newFormat = dateTime.toString("ddMMyy_hhmmss");
+
+    QString Path=m_sourceVideoPath.replace("http://127.0.0.1:8085","/var/www/matchrecord");
+    qInfo()<<"path:"<<Path;
+    QFileInfo pathInfo(Path);
+    QString outputPath = pathInfo.absolutePath()+"/trim/" + cleanId +"_"+ newFormat +"_kesilmis.mp4";
+    qInfo()<<"outputpath:"<<outputPath;
 
     QStringList arguments;
     arguments << "-ss" << startTime
@@ -138,14 +152,17 @@ void videocutterwidget::processNextInQueue()
               << "-y"
               << outputPath;
 
+    qDebug()<<"ffmpeg komut:"<<arguments;
     qDebug() << currentRecord.id << "işleniyor... Başlangıç:" << startTime;
     m_ffmpegProcess->start("ffmpeg", arguments);
 }
 
 QString videocutterwidget::calculateStartTime(const QString &dbTimestamp)
 {
-    QTime targetTime = QTime::fromString(dbTimestamp, "hh:mm:ss");
-    if (!targetTime.isValid()) return "00:00:00";
+    QDateTime targetDateTime = QDateTime::fromString(dbTimestamp, "d/M/yy hh:mm:ss");
+    if (!targetDateTime.isValid()) return "00:00:00";
+
+    QTime targetTime = targetDateTime.time();
 
     // 2 dakika (120 saniye) geriye git
     QTime startTime = targetTime.addSecs(-120);
@@ -155,7 +172,7 @@ QString videocutterwidget::calculateStartTime(const QString &dbTimestamp)
         startTime = QTime(0, 0, 0);
     }
 
-    return startTime.toString("hh:mm:ss");
+    return startTime.toString("0:mm:ss");
 }
 
 void videocutterwidget::playMainVideo(QString Path){

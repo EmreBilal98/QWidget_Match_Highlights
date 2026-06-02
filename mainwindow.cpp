@@ -24,6 +24,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_server,&Server::getVideoUrl,this,&MainWindow::getVideoUrl);
     connect(m_server,&Server::getToken,this,&MainWindow::getToken);
     connect(m_server,&Server::getName,this,&MainWindow::getName);
+    connect(m_server,&Server::getId,this,&MainWindow::getId);
     ui->date_lineEdit->setInputMask("99/99/99;_");
 
 
@@ -52,7 +53,7 @@ void MainWindow::searchClicked()
                                  .arg(ui->time_spinbox->value());
 
     qInfo() << match_datetime;
-    m_server->serverRequest(1,ui->pitch_spinbox->value(),match_datetime);
+    m_server->serverRequest(m_id,ui->pitch_spinbox->value(),match_datetime);//güncellenecek
 
 }
 
@@ -77,6 +78,7 @@ void MainWindow::suSignUpClicked()
         m_server->SignUpRequest(ui->lineEdit_suUsername->text(),ui->lineEdit_suEmail->text(),
                                 ui->spinBox_pCount->value(),ui->lineEdit_suPass->text());
     }
+
 }
 
 void MainWindow::getTimeStamps(QStringList datetimelist)
@@ -99,6 +101,10 @@ void MainWindow::getVideoUrl(QString videoUrl)
 void MainWindow::getToken(QString token)
 {
     m_token=token;
+
+    m_id=token.split("_").at(3).toInt();
+
+    qDebug() << "Ayıklanan User ID:" << m_id; // Çıktı: 14
     qInfo()<<"giriş başarılı";
     ui->stackedWidget->setCurrentIndex(RecordPage);
 }
@@ -110,6 +116,33 @@ void MainWindow::getName(QString name)
         qInfo()<<"kayıt başarılı";
         ui->stackedWidget->setCurrentIndex(LoginPage);
     }
+}
+
+void MainWindow::getId(int id,int pitchCount)
+{
+    QString basePath = "/var/www/matchrecord/matches/user_"+QString::number(id)+"/";
+    qInfo()<<basePath;
+
+    QDir dir;
+    if (!dir.exists(basePath)) {
+        dir.mkpath(basePath);
+    }
+
+    for(int i=0;i<pitchCount;i++){
+
+        QString pitchPath=basePath+"pitch_"+QString::number(i+1)+"/";
+        if (!dir.exists(pitchPath)) {
+            dir.mkpath(pitchPath);
+        }
+
+        QString trimPath=pitchPath+"trim/";
+        if (!dir.exists(trimPath)) {
+            dir.mkpath(trimPath);
+        }
+
+        qDebug() << "Klasör zinciri başarıyla oluşturuldu:" << trimPath;
+    }
+
 }
 
 

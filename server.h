@@ -32,6 +32,7 @@ signals:
     void getVideoUrl(QString videoUrl);
     void getToken(QString token);
     void getName(QString name);
+    void getId(int id,int pitchCount);
 
 private:
     QNetworkAccessManager manager,login,signUp;

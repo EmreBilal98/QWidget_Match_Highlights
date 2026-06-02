@@ -147,7 +147,7 @@ void Server::SignUpReply(QNetworkReply *reply)
         QByteArray responseData = reply->readAll();
         QJsonDocument responseDoc = QJsonDocument::fromJson(responseData);
         QJsonObject responseObj = responseDoc.object();
-
+        qInfo()<<"signup reply geldi";
         QString name = responseObj["username"].toString();
 
         if(!name.isEmpty()){
@@ -155,6 +155,16 @@ void Server::SignUpReply(QNetworkReply *reply)
         }
         else{
             qWarning() << "giriş başarısız isim yok!";
+        }
+
+        int id = responseObj["id"].toInt();
+        int pitchCount= responseObj["pitch_count"].toInt();
+
+        if(id && pitchCount){
+            emit getId(id,pitchCount);
+        }
+        else{
+            qWarning() << "id veya saha sayısı yok!";
         }
 
     } else {
