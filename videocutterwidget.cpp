@@ -5,6 +5,9 @@
 #include <QMessageBox>
 #include <QHeaderView>
 
+#define TIMESTAMP_COL 2
+#define VIDEO_DURATION 4
+
 
 videocutterwidget::videocutterwidget(QWidget *parent): QWidget(parent)
 {
@@ -22,20 +25,77 @@ videocutterwidget::videocutterwidget(QWidget *parent): QWidget(parent)
     m_tableWidget->setHorizontalHeaderLabels(QStringList() << "Seç" << "Kayıt ID" << "Zaman");
     m_tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 
-    // 2. Buton Kurulumu
-    m_cutButton = new QPushButton("Seçilenleri Kes ve Kaydet", this);
+    // main video Buton Kurulumu
+    m_mainVideoButton = new QPushButton("back to full match", this);
+    connect(m_mainVideoButton, &QPushButton::clicked, this, &videocutterwidget::onMainVideoButtonClicked);
+
+    // cut Buton Kurulumu
+    m_cutButton = new QPushButton("Cut and save the choosens", this);
     connect(m_cutButton, &QPushButton::clicked, this, &videocutterwidget::onCutButtonClicked);
+
+    //slider kurulumu
+    m_videoSlider=new QSlider(Qt::Horizontal,this);
+
+    m_currentTimeLabel = new QLabel("00:00", this);
+    m_totalTimeLabel = new QLabel("00:00", this);
+
+    m_currentTimeLabel->setAlignment(Qt::AlignCenter);
+    m_totalTimeLabel->setAlignment(Qt::AlignCenter);
+    m_currentTimeLabel->setMinimumWidth(50);
+    m_totalTimeLabel->setMinimumWidth(50);
+
+    QHBoxLayout *sliderLayout = new QHBoxLayout();
+    sliderLayout->addWidget(m_currentTimeLabel); // En solda anlık süre
+    sliderLayout->addWidget(m_videoSlider);       // Ortada  slider
+    sliderLayout->addWidget(m_totalTimeLabel);     // En sağda toplam süre
+
+
+
+    // 1. Toplam süre değiştiğinde slider aralığını güncelle
+    connect(m_mediaPlayer, &QMediaPlayer::durationChanged, this, [this](qint64 duration) {
+        m_videoSlider->setRange(0, duration);
+        m_totalTimeLabel->setText(formatTime(duration));
+    });
+
+
+    connect(m_videoSlider, &QSlider::sliderMoved, this, [this](int position) {
+        m_endPositionMs = 0;
+        m_currentTimeLabel->setText(formatTime(position)); // Sürüklerken sol etiket canlansın
+    });
+
+    // 2. Video oynarken slider'ı yürüt (Sadece kullanıcı slider'ı TUTMUYORSA)
+    connect(m_mediaPlayer, &QMediaPlayer::positionChanged, this, [this](qint64 position) {
+        if (!m_videoSlider->isSliderDown()) {
+            // Sinyal çakışmasını engellemek için slider'ın sinyallerini geçici olarak engelliyoruz
+            m_videoSlider->blockSignals(true);
+            m_videoSlider->setValue(position);
+            m_videoSlider->blockSignals(false);
+        }
+
+        m_currentTimeLabel->setText(formatTime(position));
+    });
+
+    // 3. Kullanıcı slider'ı sürüklemeyi bitirip ELİNİ ÇEKTİĞİ AN videoyu o saniyeye zıplat
+    // Bu yöntem Nginx'e saniyede 100 tane istek atmak yerine, sadece tek bir kesin istek atar ve donmayı önler.
+    connect(m_videoSlider, &QSlider::sliderReleased, this, [this]() {
+        qint64 targetPos = m_videoSlider->value();
+        qInfo() << "Kullanıcı slider'ı bıraktı, zıplanıyor:" << targetPos;
+        m_mediaPlayer->setPosition(targetPos);
+    });
 
     // Layout Kurulumu
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->addWidget(m_videoWidget);
+    layout->addLayout(sliderLayout);
+    layout->addWidget(m_mainVideoButton);
     layout->addWidget(m_tableWidget);
     layout->addWidget(m_cutButton);
 
-    // 3. Sigorta: Videonun tamamen kaybolmasını engellemek için minimum bir yükseklik ver
     m_videoWidget->setMinimumHeight(300); // Kafana göre değiştirebilirsin (örn: 250 veya 300)
 
     layout->setStretchFactor(m_videoWidget, 3); // Video dikey alanın %60'ını kaplasın
+    layout->setStretchFactor(sliderLayout, 0);
+    layout->setStretchFactor(m_mainVideoButton, 0);   // Buton sadece kendi boyutu kadar yer kaplasın, hiç esnemesin
     layout->setStretchFactor(m_tableWidget, 2); // Tablo dikey alanın %40'ını kaplasın
     layout->setStretchFactor(m_cutButton, 0);   // Buton sadece kendi boyutu kadar yer kaplasın, hiç esnemesin
     setLayout(layout);
@@ -44,6 +104,24 @@ videocutterwidget::videocutterwidget(QWidget *parent): QWidget(parent)
     m_ffmpegProcess = new QProcess(this);
     connect(m_ffmpegProcess, SIGNAL(finished(int, QProcess::ExitStatus)),
             this, SLOT(onFFmpegFinished(int, QProcess::ExitStatus)));
+
+    connect(m_tableWidget, &QTableWidget::cellClicked, this, &videocutterwidget::onTableBlockClicked);
+    connect(m_mediaPlayer, &QMediaPlayer::positionChanged, this, &videocutterwidget::handlePositionChanged);
+
+    connect(m_mediaPlayer, &QMediaPlayer::mediaStatusChanged, this, [this](QMediaPlayer::MediaStatus status) {
+        // Media yüklendiğinde veya tampon bellek dolduğunda (BufferedMedia / LoadedMedia)
+        if (status == QMediaPlayer::BufferedMedia || status == QMediaPlayer::LoadedMedia) {
+            if (m_startPositionMs > 0) {
+                qInfo() << "Video hazır! Hedef saniyeye zıplanıyor:" << m_startPositionMs;
+                m_mediaPlayer->setPosition(m_startPositionMs);
+
+                // Tekrar tekrar tetiklenmesin diye hedefi sıfırlıyoruz
+                //m_startPositionMs = 0;
+            }
+        }
+    });
+
+
 }
 
 videocutterwidget::~videocutterwidget(){}
@@ -112,6 +190,58 @@ void videocutterwidget::onFFmpegFinished(int exitCode, QProcess::ExitStatus exit
     }
 }
 
+void videocutterwidget::handlePositionChanged(qint64 position)
+{
+    if (position >= m_endPositionMs && m_endPositionMs!=0) {
+        m_mediaPlayer->pause(); // İstersen stop() veya başa sarmak için setPosition() yapabilirsin
+        qDebug() << "Hedef süreye ulaşıldı, video durduruldu.";
+    }
+}
+
+void videocutterwidget::onTableBlockClicked(int row, int column)
+{
+
+    QTableWidgetItem *item = m_tableWidget->item(row, TIMESTAMP_COL);
+
+    if (!item) {
+        qWarning() << "Tıklanan satırda zaman bulunamadı!";
+        return;
+    }
+
+    QString modified_time = calculateStartTime(item->text());
+    qInfo() << "Seçilen blok oynatılıyor:" << modified_time;
+
+    QStringList times=modified_time.split(":");
+    int time_second=(times.at(1).toInt()*60)+times.at(2).toInt();
+    qInfo() <<time_second;
+
+    playVideoSegment(time_second);
+}
+
+QString videocutterwidget::formatTime(qint64 milliseconds)
+{
+    qint64 totalSeconds = milliseconds / 1000;
+    int seconds = totalSeconds % 60;
+    int minutes = (totalSeconds / 60) % 60;
+    int hours = totalSeconds / 3600;
+
+    // Sayıların başına sıfır eklemek için QString::arg kullanıyoruz (Örn: 5 saniye -> "05")
+    QString timeString;
+    if (hours > 0) {
+        // Eğer video 1 saatten uzunsa saati de gösterir: "01:23:45"
+        timeString = QString("%1:%2:%3")
+                         .arg(hours, 2, 10, QChar('0'))
+                         .arg(minutes, 2, 10, QChar('0'))
+                         .arg(seconds, 2, 10, QChar('0'));
+    } else {
+        // 1 saatten kısaysa sadece dakika ve saniye: "23:45"
+        timeString = QString("%1:%2")
+                         .arg(minutes, 2, 10, QChar('0'))
+                         .arg(seconds, 2, 10, QChar('0'));
+    }
+    return timeString;
+}
+
 void videocutterwidget::processNextInQueue()
 {
     if (m_processingQueue.isEmpty()) {
@@ -125,8 +255,7 @@ void videocutterwidget::processNextInQueue()
     qInfo()<<"tiimestamp::"<<currentRecord.timestamp;
     QString startTime = calculateStartTime(currentRecord.timestamp);
 
-    // Çıktı dosya adı formatı: örn. "Kayit_1_kesilmis.mp4"
-    QFileInfo fileInfo(m_sourceVideoPath);
+
     qInfo()<<"mmy path:"<<m_sourceVideoPath;
     QString cleanId = currentRecord.id;
     cleanId.replace(" ", "_").replace(".", "");
@@ -147,7 +276,7 @@ void videocutterwidget::processNextInQueue()
     QStringList arguments;
     arguments << "-ss" << startTime
               << "-i"  << m_sourceVideoPath
-              << "-t"  << "00:04:00"
+              << "-t"  << "00:0"+QString::number(VIDEO_DURATION)+":00"
               << "-c"  << "copy"
               << "-y"
               << outputPath;
@@ -180,6 +309,25 @@ void videocutterwidget::playMainVideo(QString Path){
     // Kesilen videoyu QVideoWidget alanında oynat
     m_mediaPlayer->setSource(QUrl::fromLocalFile(Path));
     m_mediaPlayer->play();
+    m_endPositionMs=0;
+    m_startPositionMs=0;
+
+
+}
+
+void videocutterwidget::playVideoSegment(int startSecond)
+{
+    // Qt milisaniye (ms) çalıştığı için saniyeleri 1000 ile çarpıyoruz
+    m_startPositionMs = startSecond * 1000;
+    m_endPositionMs = (startSecond+(VIDEO_DURATION*60)) * 1000;
+
+    if (m_mediaPlayer->source() == QUrl(m_sourceVideoPath)) {
+        m_mediaPlayer->setPosition(m_startPositionMs);
+        m_mediaPlayer->play();
+    } else {
+        m_mediaPlayer->setSource(QUrl(m_sourceVideoPath));
+        m_mediaPlayer->play();
+    }
 }
 
 void videocutterwidget::onCutButtonClicked()
@@ -211,4 +359,9 @@ void videocutterwidget::onCutButtonClicked()
 
     // İlk videoyu kesmeye başla
     processNextInQueue();
+}
+
+void videocutterwidget::onMainVideoButtonClicked()
+{
+    playMainVideo(m_sourceVideoPath);
 }
