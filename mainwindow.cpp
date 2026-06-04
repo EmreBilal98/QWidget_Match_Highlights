@@ -28,6 +28,9 @@ MainWindow::MainWindow(QWidget *parent)
     ui->date_lineEdit->setInputMask("99/99/99;_");
 
 
+    connect(ui->date_lineEdit,&QLineEdit::textChanged,this,&MainWindow::makeDate);
+    connect(ui->time_spinbox,&QSpinBox::valueChanged,this,&MainWindow::makeDate);
+    connect(this,&MainWindow::getDate,cutterWidget,&videocutterwidget::getDate);
 
 
 }
@@ -143,6 +146,11 @@ void MainWindow::getId(int id,int pitchCount)
         qDebug() << "Klasör zinciri başarıyla oluşturuldu:" << trimPath;
     }
 
+}
+
+void MainWindow::makeDate()
+{
+    emit getDate(ui->date_lineEdit->text()+" "+QString::number(ui->time_spinbox->value()));
 }
 
 

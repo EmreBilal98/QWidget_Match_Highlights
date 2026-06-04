@@ -11,13 +11,28 @@
 
 videocutterwidget::videocutterwidget(QWidget *parent): QWidget(parent)
 {
-    // Oyuncu ve Video Alanı Kurulumu
+
+    // --- Yeni Grafik Sahnesi Oynatıcı Kurulumu ---
+    m_graphicsScene = new QGraphicsScene(this);
+    m_graphicsView = new QGraphicsView(m_graphicsScene, this);
+    m_videoItem = new QGraphicsVideoItem();
+
+    m_graphicsScene->addItem(m_videoItem);
+
+    // Arka planı simsiyah mühürle ve çerçeveyi kaldır
+    m_graphicsView->setBackgroundBrush(Qt::black);
+    m_graphicsView->setFrameShape(QFrame::NoFrame);
+    m_graphicsView->setMinimumHeight(300);
+
+    // Oynatıcı çıkışlarını ve ses kartını bağla
     m_mediaPlayer = new QMediaPlayer(this);
     m_audioOutput = new QAudioOutput(this);
-    m_videoWidget = new QVideoWidget(this);
 
     m_mediaPlayer->setAudioOutput(m_audioOutput);
-    m_mediaPlayer->setVideoOutput(m_videoWidget);
+    m_mediaPlayer->setVideoOutput(m_videoItem); // Çıkış artık videoItem!
+
+    // Ekran en boy oranını pencereye göre esnetmek istiyorsan (IgnoreAspectRatio alternatifi):
+    m_videoItem->setAspectRatioMode(Qt::IgnoreAspectRatio);
 
     // Tablo Kurulumu
     m_tableWidget = new QTableWidget(this);
@@ -33,6 +48,14 @@ videocutterwidget::videocutterwidget(QWidget *parent): QWidget(parent)
     m_cutButton = new QPushButton("Cut and save the choosens", this);
     connect(m_cutButton, &QPushButton::clicked, this, &videocutterwidget::onCutButtonClicked);
 
+    //play pause buton kurulumu
+    m_playPauseButton=new QPushButton("Pause", this);
+    connect(m_playPauseButton, &QPushButton::clicked, this, &videocutterwidget::onPlayPauseButtonClicked);
+
+    //kayıt ekleme buton kurulumu
+    m_addRecordButton=new QPushButton("Add new record", this);
+    connect(m_addRecordButton, &QPushButton::clicked, this, &videocutterwidget::onAddRecordButtonClicked);
+    m_addRecordButton->setEnabled(false);
     //slider kurulumu
     m_videoSlider=new QSlider(Qt::Horizontal,this);
 
@@ -44,7 +67,12 @@ videocutterwidget::videocutterwidget(QWidget *parent): QWidget(parent)
     m_currentTimeLabel->setMinimumWidth(50);
     m_totalTimeLabel->setMinimumWidth(50);
 
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    buttonLayout->addWidget(m_mainVideoButton);
+    buttonLayout->addWidget(m_addRecordButton);
+
     QHBoxLayout *sliderLayout = new QHBoxLayout();
+    sliderLayout->addWidget(m_playPauseButton);
     sliderLayout->addWidget(m_currentTimeLabel); // En solda anlık süre
     sliderLayout->addWidget(m_videoSlider);       // Ortada  slider
     sliderLayout->addWidget(m_totalTimeLabel);     // En sağda toplam süre
@@ -75,7 +103,6 @@ videocutterwidget::videocutterwidget(QWidget *parent): QWidget(parent)
         m_currentTimeLabel->setText(formatTime(position));
     });
 
-    // 3. Kullanıcı slider'ı sürüklemeyi bitirip ELİNİ ÇEKTİĞİ AN videoyu o saniyeye zıplat
     // Bu yöntem Nginx'e saniyede 100 tane istek atmak yerine, sadece tek bir kesin istek atar ve donmayı önler.
     connect(m_videoSlider, &QSlider::sliderReleased, this, [this]() {
         qint64 targetPos = m_videoSlider->value();
@@ -85,15 +112,15 @@ videocutterwidget::videocutterwidget(QWidget *parent): QWidget(parent)
 
     // Layout Kurulumu
     QVBoxLayout *layout = new QVBoxLayout(this);
-    layout->addWidget(m_videoWidget);
+    layout->addWidget(m_graphicsView);
     layout->addLayout(sliderLayout);
-    layout->addWidget(m_mainVideoButton);
+    layout->addLayout(buttonLayout);
     layout->addWidget(m_tableWidget);
     layout->addWidget(m_cutButton);
 
-    m_videoWidget->setMinimumHeight(300); // Kafana göre değiştirebilirsin (örn: 250 veya 300)
+    m_graphicsView->setMinimumHeight(300); // Kafana göre değiştirebilirsin (örn: 250 veya 300)
 
-    layout->setStretchFactor(m_videoWidget, 3); // Video dikey alanın %60'ını kaplasın
+    layout->setStretchFactor(m_graphicsView, 3); // Video dikey alanın %60'ını kaplasın
     layout->setStretchFactor(sliderLayout, 0);
     layout->setStretchFactor(m_mainVideoButton, 0);   // Buton sadece kendi boyutu kadar yer kaplasın, hiç esnemesin
     layout->setStretchFactor(m_tableWidget, 2); // Tablo dikey alanın %40'ını kaplasın
@@ -193,7 +220,7 @@ void videocutterwidget::onFFmpegFinished(int exitCode, QProcess::ExitStatus exit
 void videocutterwidget::handlePositionChanged(qint64 position)
 {
     if (position >= m_endPositionMs && m_endPositionMs!=0) {
-        m_mediaPlayer->pause(); // İstersen stop() veya başa sarmak için setPosition() yapabilirsin
+        m_mediaPlayer->pause();
         qDebug() << "Hedef süreye ulaşıldı, video durduruldu.";
     }
 }
@@ -216,6 +243,11 @@ void videocutterwidget::onTableBlockClicked(int row, int column)
     qInfo() <<time_second;
 
     playVideoSegment(time_second);
+}
+
+void videocutterwidget::getDate(QString date)
+{
+    m_currentdate=date;
 }
 
 QString videocutterwidget::formatTime(qint64 milliseconds)
@@ -304,6 +336,20 @@ QString videocutterwidget::calculateStartTime(const QString &dbTimestamp)
     return startTime.toString("0:mm:ss");
 }
 
+void videocutterwidget::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+
+
+    if (m_graphicsScene && m_graphicsView && m_videoItem) {
+
+        m_graphicsScene->setSceneRect(m_graphicsView->rect());
+
+
+        m_videoItem->setSize(m_graphicsView->size());
+    }
+}
+
 void videocutterwidget::playMainVideo(QString Path){
 
     // Kesilen videoyu QVideoWidget alanında oynat
@@ -311,6 +357,7 @@ void videocutterwidget::playMainVideo(QString Path){
     m_mediaPlayer->play();
     m_endPositionMs=0;
     m_startPositionMs=0;
+    m_addRecordButton->setEnabled(true);
 
 
 }
@@ -324,9 +371,11 @@ void videocutterwidget::playVideoSegment(int startSecond)
     if (m_mediaPlayer->source() == QUrl(m_sourceVideoPath)) {
         m_mediaPlayer->setPosition(m_startPositionMs);
         m_mediaPlayer->play();
+        m_playPauseButton->setText("Pause");
     } else {
         m_mediaPlayer->setSource(QUrl(m_sourceVideoPath));
         m_mediaPlayer->play();
+        m_playPauseButton->setText("Pause");
     }
 }
 
@@ -361,7 +410,60 @@ void videocutterwidget::onCutButtonClicked()
     processNextInQueue();
 }
 
+void videocutterwidget::onPlayPauseButtonClicked()
+{
+    if(m_playPauseButton->text()=="Pause"){
+        m_playPauseButton->setText("Play");
+        m_mediaPlayer->pause();
+    }else if(m_playPauseButton->text()=="Play"){
+        m_playPauseButton->setText("Pause");
+        m_mediaPlayer->play();
+    }
+}
+
 void videocutterwidget::onMainVideoButtonClicked()
 {
     playMainVideo(m_sourceVideoPath);
+}
+
+void videocutterwidget::onAddRecordButtonClicked()
+{
+    // 1. Dialog nesnesini oluşturuyoruz
+    RecordDialog dialog(this);
+
+    // 2. Dialogu "Modal" (Ana ekranı kilitleyecek şekilde) açıyoruz
+    // exec() fonksiyonu, kullanıcı Kaydet veya İptal diyene kadar kodu burada bekletir.
+    if (dialog.exec() == QDialog::Accepted) {
+        // Kullanıcı "Kaydet" butonuna bastıysa buraya girer
+        QString newId = dialog.getId();
+        QString newTimestamp = dialog.getTimestamp();
+
+        if (newId.isEmpty() || newTimestamp.isEmpty()) {
+            QMessageBox::warning(this, "Hata", "Alanlar boş bırakılamaz!");
+            return;
+        }
+
+        // 3. Mevcut Tabloya (`m_tableWidget`) Yeni Satır Ekleme Mantığı
+        int currentRowCount = m_tableWidget->rowCount();
+        m_tableWidget->insertRow(currentRowCount);
+
+        // Sütun 0: Checkbox (Kesme işlemine dahil edilebilsin diye varsayılan Unchecked yapıyoruz)
+        QTableWidgetItem *checkItem = new QTableWidgetItem();
+        checkItem->setCheckState(Qt::Unchecked);
+        m_tableWidget->setItem(currentRowCount, 0, checkItem);
+
+        // Sütun 1: Kayıt ID
+        QTableWidgetItem *idItem = new QTableWidgetItem(newId);
+        idItem->setFlags(idItem->flags() ^ Qt::ItemIsEditable); // Düzenlenemez yap
+        m_tableWidget->setItem(currentRowCount, 1, idItem);
+
+        // Sütun 2: Zaman
+        QTableWidgetItem *timeItem = new QTableWidgetItem(m_currentdate+":"+newTimestamp);
+        timeItem->setFlags(timeItem->flags() ^ Qt::ItemIsEditable);
+        m_tableWidget->setItem(currentRowCount, 2, timeItem);
+
+        qInfo() << "Tabloya elle yeni kayıt eklendi:" << newId << "-" << newTimestamp;
+    } else {
+        qInfo() << "Kullanıcı yeni kayıt ekleme işlemini iptal etti.";
+    }
 }

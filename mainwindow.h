@@ -19,6 +19,8 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+signals:
+    void getDate(QString date);
 
 private slots:
     void searchClicked();
@@ -31,6 +33,7 @@ private slots:
     void getToken(QString token);
     void getName(QString name);
     void getId(int id,int pitchCount);
+    void makeDate();
 
 private:
     Ui::MainWindow *ui;

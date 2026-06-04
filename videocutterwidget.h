@@ -14,6 +14,10 @@
 #include <QPushButton>
 #include <QQueue>
 #include <QLabel>
+#include <QGraphicsView>
+#include <QGraphicsScene>
+#include <QGraphicsVideoItem>
+#include "recorddialog.h"
 
 // Her bir DB kaydını temsil eden yapı
 struct VideoRecord {
@@ -44,10 +48,18 @@ public:
 
 private slots:
     void onCutButtonClicked();
+    void onPlayPauseButtonClicked();
     void onMainVideoButtonClicked();
+    void onAddRecordButtonClicked();
     void onFFmpegFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void handlePositionChanged(qint64 position);
     void onTableBlockClicked(int row, int column);
+
+public slots:
+    void getDate(QString date);
+
+
+
 
 private:
     // UI Elemanları
@@ -55,9 +67,16 @@ private:
     QMediaPlayer *m_mediaPlayer;
     QAudioOutput *m_audioOutput;
 
+    QGraphicsView *m_graphicsView;
+    QGraphicsScene *m_graphicsScene;
+    QGraphicsVideoItem *m_videoItem;
+
     QTableWidget *m_tableWidget;
     QPushButton *m_mainVideoButton;
+    QPushButton *m_addRecordButton;
     QPushButton *m_cutButton;
+    QPushButton *m_playPauseButton;
+
     QSlider *m_videoSlider;
     QLabel *m_currentTimeLabel;
     QLabel *m_totalTimeLabel;
@@ -78,6 +97,13 @@ private:
 
     quint64 m_endPositionMs;
     quint64 m_startPositionMs;
+
+    QString m_currentdate;
+
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
+
 };
 
 #endif // VIDEOCUTTERWIDGET_H
