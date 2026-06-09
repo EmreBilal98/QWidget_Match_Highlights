@@ -5,7 +5,7 @@
 #include <QMessageBox>
 #include <QHeaderView>
 
-#define TIMESTAMP_COL 2
+#define TIMESTAMP_COL 3
 #define VIDEO_DURATION 4
 
 
@@ -36,8 +36,8 @@ videocutterwidget::videocutterwidget(QWidget *parent): QWidget(parent)
 
     // Tablo Kurulumu
     m_tableWidget = new QTableWidget(this);
-    m_tableWidget->setColumnCount(3);
-    m_tableWidget->setHorizontalHeaderLabels(QStringList() << "Seç" << "Kayıt ID" << "Zaman");
+    m_tableWidget->setColumnCount(4);
+    m_tableWidget->setHorizontalHeaderLabels(QStringList() << "Choose" <<"Team ID"<< "Record ID" << "Timestamp");
     m_tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 
     // main video Buton Kurulumu
@@ -189,15 +189,20 @@ void videocutterwidget::loadRecordsFromDb(const QList<VideoRecord> &records)
         checkItem->setCheckState(Qt::Unchecked); // Varsayılan olarak seçili değil
         m_tableWidget->setItem(i, 0, checkItem);
 
-        // Sütun 1: Kayıt IDsi
-        QTableWidgetItem *idItem = new QTableWidgetItem(records[i].id);
-        idItem->setFlags(idItem->flags() ^ Qt::ItemIsEditable); // Düzenlenemez yap
-        m_tableWidget->setItem(i, 1, idItem);
+        // Sütun 1: Takım IDsi
+        QTableWidgetItem *teamItem = new QTableWidgetItem(records[i].teamID);
+        teamItem->setFlags(teamItem->flags() ^ Qt::ItemIsEditable);
+        m_tableWidget->setItem(i, 1, teamItem);
 
-        // Sütun 2: Zaman
+        // Sütun 2: Kayıt IDsi
+        QTableWidgetItem *idItem = new QTableWidgetItem(records[i].id);
+        idItem->setFlags(idItem->flags() ^ Qt::ItemIsEditable);
+        m_tableWidget->setItem(i, 2, idItem);
+
+        // Sütun 3: Zaman
         QTableWidgetItem *timeItem = new QTableWidgetItem(records[i].timestamp);
         timeItem->setFlags(timeItem->flags() ^ Qt::ItemIsEditable);
-        m_tableWidget->setItem(i, 2, timeItem);
+        m_tableWidget->setItem(i, 3, timeItem);
     }
 }
 

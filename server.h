@@ -28,15 +28,17 @@ private slots:
     void SignUpReply(QNetworkReply *reply);
 
 signals:
-    void getTimeStamps(QStringList datetimelist);
+    void getTimeStamps(QStringList datetimelist,QList<int> teamIDList);
     void getVideoUrl(QString videoUrl);
     void getToken(QString token);
     void getName(QString name);
+    void getTeamID(int tID);
     void getId(int id,int pitchCount);
 
 private:
     QNetworkAccessManager manager,login,signUp;
     QStringList m_dateTimeList;
+    QList<int> m_teamIDList;
     QString m_videoUrl;
     QString m_token;
 };

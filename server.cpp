@@ -94,11 +94,15 @@ void Server::serverReply(QNetworkReply *reply)
                 if (obj.contains("video_url") && obj["video_url"].isString()) {
                     m_videoUrl = obj["video_url"].toString();
                 }
+
+                if (obj.contains("team_id")) {
+                    m_teamIDList.append(obj["team_id"].toInt());
+                }
             }
         }
 
         if(!m_dateTimeList.isEmpty()){
-            emit getTimeStamps(m_dateTimeList);
+            emit getTimeStamps(m_dateTimeList,m_teamIDList);
         }
         else{
             qWarning() << "bu saate ait kayıt yok!";
@@ -110,6 +114,10 @@ void Server::serverReply(QNetworkReply *reply)
         else{
             qWarning() << "bu saate ait video kaydı yok!";
         }
+
+
+
+
 
     } else {
         qWarning() << "Hata:" << reply->errorString();
@@ -173,3 +181,5 @@ void Server::SignUpReply(QNetworkReply *reply)
     }
     reply->deleteLater();
 }
+
+

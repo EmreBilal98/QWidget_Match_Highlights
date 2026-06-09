@@ -84,12 +84,12 @@ void MainWindow::suSignUpClicked()
 
 }
 
-void MainWindow::getTimeStamps(QStringList datetimelist)
+void MainWindow::getTimeStamps(QStringList datetimelist,QList<int> teamIDList)
 {
     dbVerileri.clear();
     int i=0;
     foreach (QString datetime, datetimelist) {
-        dbVerileri.append(VideoRecord{QString("%1. Kayıt").arg(++i), datetime});
+        dbVerileri.append(VideoRecord{QString("%1. Takım").arg(teamIDList.at(i)),QString("%1. Kayıt").arg(++i), datetime});
     }
 
     cutterWidget->loadRecordsFromDb(dbVerileri);
@@ -119,6 +119,11 @@ void MainWindow::getName(QString name)
         qInfo()<<"kayıt başarılı";
         ui->stackedWidget->setCurrentIndex(LoginPage);
     }
+}
+
+void MainWindow::getTeamID(int tID)
+{
+
 }
 
 void MainWindow::getId(int id,int pitchCount)

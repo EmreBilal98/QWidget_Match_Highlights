@@ -21,6 +21,7 @@
 
 // Her bir DB kaydını temsil eden yapı
 struct VideoRecord {
+    QString teamID;
     QString id;
     QString timestamp;
 };

@@ -28,10 +28,11 @@ private slots:
     void SignUpClicked();
     void suLoginClicked();
     void suSignUpClicked();
-    void getTimeStamps(QStringList datetimelist);
+    void getTimeStamps(QStringList datetimelist,QList<int> teamIDList);
     void getVideoUrl(QString videoUrl);
     void getToken(QString token);
     void getName(QString name);
+    void getTeamID(int tID);
     void getId(int id,int pitchCount);
     void makeDate();
 
