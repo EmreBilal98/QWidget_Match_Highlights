@@ -208,18 +208,43 @@ void videocutterwidget::loadRecordsFromDb(const QList<VideoRecord> &records)
 
 void videocutterwidget::onFFmpegFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
+
+
+    if (m_loadingDialog) {
+        m_loadingDialog->close();
+        m_loadingDialog->deleteLater();
+        m_loadingDialog = nullptr;
+    }
+
+    m_mainVideoButton->setEnabled(true);
+    m_cutButton->setEnabled(true);
+
     if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
+
+        if (m_ffmpegMode == FFmpegMode::BakeFullMatch) {
+            qDebug() << "Full maç başarıyla scoreboard ile işlendi! Oynatılıyor:" << m_bakedFullMatchPath;
+
+            m_mediaPlayer->setSource(QUrl::fromLocalFile(m_bakedFullMatchPath));
+            m_mediaPlayer->play();
+
+            m_endPositionMs = 0;
+            m_startPositionMs = 0;
+            m_addRecordButton->setEnabled(true);
+            m_playPauseButton->setText("Pause");
+        }
+        else if (m_ffmpegMode == FFmpegMode::Trim) {
         qDebug() << "Video başarıyla kesildi! Oynatılıyor:" << m_outputPath;
 
 
         // Bir sonraki videoya geç (Kuyruk boşalana kadar kendi kendini çağırır)
         processNextInQueue();
-        // Kesilen videoyu QVideoWidget alanında oynat
-        //m_mediaPlayer->setSource(QUrl::fromLocalFile(m_outputPath));
-        //m_mediaPlayer->play();
+        }
+
     } else {
         qDebug() << "FFmpeg hatası oluştu! Hata kodu:" << m_ffmpegProcess->readAllStandardError();
     }
+
+    m_ffmpegMode = FFmpegMode::Idle;
 }
 
 void videocutterwidget::handlePositionChanged(qint64 position)
@@ -279,6 +304,16 @@ QString videocutterwidget::formatTime(qint64 milliseconds)
     return timeString;
 }
 
+int videocutterwidget::convertTimestampToMatchSecond(QString timestampStr)
+{
+    // Tablodaki zamanı alıyoruz (Örn: "25/04/26 12:23:23")
+    QStringList timeList=timestampStr.split(":");
+    qInfo()<<"timeList:"<<timeList;
+
+    return (timeList.at(1).toInt()*60)+timeList.at(2).toInt();
+
+}
+
 void videocutterwidget::processNextInQueue()
 {
     if (m_processingQueue.isEmpty()) {
@@ -293,7 +328,7 @@ void videocutterwidget::processNextInQueue()
     QString startTime = calculateStartTime(currentRecord.timestamp);
 
 
-    qInfo()<<"mmy path:"<<m_sourceVideoPath;
+    qInfo()<<"mmy path:"<<m_bakedFullMatchPath;
     QString cleanId = currentRecord.id;
     cleanId.replace(" ", "_").replace(".", "");
 
@@ -304,7 +339,7 @@ void videocutterwidget::processNextInQueue()
     }
     QString newFormat = dateTime.toString("ddMMyy_hhmmss");
 
-    QString Path=m_sourceVideoPath.replace("http://127.0.0.1:8085","/var/www/matchrecord");
+    QString Path=m_bakedFullMatchPath;
     qInfo()<<"path:"<<Path;
     QFileInfo pathInfo(Path);
     QString outputPath = pathInfo.absolutePath()+"/trim/" + cleanId +"_"+ newFormat +"_kesilmis.mp4";
@@ -312,7 +347,7 @@ void videocutterwidget::processNextInQueue()
 
     QStringList arguments;
     arguments << "-ss" << startTime
-              << "-i"  << m_sourceVideoPath
+              << "-i"  << m_bakedFullMatchPath
               << "-t"  << "00:0"+QString::number(VIDEO_DURATION)+":00"
               << "-c"  << "copy"
               << "-y"
@@ -320,6 +355,7 @@ void videocutterwidget::processNextInQueue()
 
     qDebug()<<"ffmpeg komut:"<<arguments;
     qDebug() << currentRecord.id << "işleniyor... Başlangıç:" << startTime;
+    m_ffmpegMode = FFmpegMode::Trim;
     m_ffmpegProcess->start("ffmpeg", arguments);
 }
 
@@ -357,12 +393,46 @@ void videocutterwidget::resizeEvent(QResizeEvent *event)
 
 void videocutterwidget::playMainVideo(QString Path){
 
+    QString localPath = Path;
+    localPath.replace("http://127.0.0.1:8085", "/var/www/matchrecord");
+
+    // 1. Çıktı klasörünü ve dosya adını belirle (Örn: video_with_scoreboard.mp4)
+    QFileInfo fileInfo(localPath);
+    QString outputPath = fileInfo.absolutePath() + "/" + fileInfo.baseName() + "_with_scoreboard.mp4";
+    m_bakedFullMatchPath = outputPath; // Başarılı bitince oynatabilmek için saklıyoruz
+
+    // 🌟 PERFORMANS SİGORTASI: Eğer bu maç daha önce scoreboard ile işlendiyse
+    // dakikalarca tekrar beklememek için direkt oynatıyoruz.
+    if (QFile::exists(outputPath)) {
+        qInfo() << "Bu maçın skorlu hali zaten mevcut, direkt oynatılıyor:" << outputPath;
+        m_mediaPlayer->setSource(QUrl::fromLocalFile(outputPath));
+        m_mediaPlayer->play();
+        m_endPositionMs = 0;
+        m_startPositionMs = 0;
+        m_playPauseButton->setText("Pause");
+        m_addRecordButton->setEnabled(true);
+        return;
+    }
+
+    // 2. Video ilk defa işlenecekse FFmpeg modunu ayarla ve butonları kilitle
+    m_ffmpegMode = FFmpegMode::BakeFullMatch;
+    m_mainVideoButton->setEnabled(false);
+    m_cutButton->setEnabled(false);
+
+    // 3. Skor basma fonksiyonunu tetikle
+    bakeScoreboardToFullMatch(localPath, outputPath);
+
+
+
+
+
+
     // Kesilen videoyu QVideoWidget alanında oynat
-    m_mediaPlayer->setSource(QUrl::fromLocalFile(Path));
-    m_mediaPlayer->play();
-    m_endPositionMs=0;
-    m_startPositionMs=0;
-    m_addRecordButton->setEnabled(true);
+    // m_mediaPlayer->setSource(QUrl::fromLocalFile(Path));
+    // m_mediaPlayer->play();
+    // m_endPositionMs=0;
+    // m_startPositionMs=0;
+    // m_addRecordButton->setEnabled(true);
 
 
 }
@@ -373,12 +443,12 @@ void videocutterwidget::playVideoSegment(int startSecond)
     m_startPositionMs = startSecond * 1000;
     m_endPositionMs = (startSecond+(VIDEO_DURATION*60)) * 1000;
 
-    if (m_mediaPlayer->source() == QUrl(m_sourceVideoPath)) {
+    if (m_mediaPlayer->source() == QUrl(m_bakedFullMatchPath)) {
         m_mediaPlayer->setPosition(m_startPositionMs);
         m_mediaPlayer->play();
         m_playPauseButton->setText("Pause");
     } else {
-        m_mediaPlayer->setSource(QUrl(m_sourceVideoPath));
+        m_mediaPlayer->setSource(QUrl(m_bakedFullMatchPath));
         m_mediaPlayer->play();
         m_playPauseButton->setText("Pause");
     }
@@ -386,7 +456,7 @@ void videocutterwidget::playVideoSegment(int startSecond)
 
 void videocutterwidget::onCutButtonClicked()
 {
-    if (m_sourceVideoPath.isEmpty()) {
+    if (m_bakedFullMatchPath.isEmpty()) {
         QMessageBox::warning(this, "Hata", "Lütfen önce kaynak bir video belirleyin!");
         return;
     }
@@ -471,4 +541,99 @@ void videocutterwidget::onAddRecordButtonClicked()
     } else {
         qInfo() << "Kullanıcı yeni kayıt ekleme işlemini iptal etti.";
     }
+}
+
+void videocutterwidget::bakeScoreboardToFullMatch(const QString &inputVideoPath, const QString &outputVideoPath)
+{
+    QString filterString = "drawbox=y=10:x=10:w=420:h=50:color=black@0.7:t=fill,"
+                           "drawtext=text='TAKIM 1':x=20:y=25:fontcolor=white:fontsize=20,"
+                           "drawtext=text='TAKIM 2':x=280:y=25:fontcolor=white:fontsize=20,";
+
+    int rowCount = m_tableWidget->rowCount();
+    qint64 totalDurationSec = m_mediaPlayer->duration() / 1000; // Videonun toplam saniyesi
+
+    if (totalDurationSec <= 0) totalDurationSec = 3600; // Güvenlik önlemi (1 saat)
+
+    int currentTeam1Score = 0;
+    int currentTeam2Score = 0;
+    qint64 lastEventTimeSec = 0;
+
+    QStringList scoreFilters;
+
+    for (int i = 0; i < rowCount; ++i) {
+        // Tablodaki zamanı alıyoruz (Örn: "25/04/26 12:23:23")
+        QString timestampStr = m_tableWidget->item(i, 3)->text();
+
+        qint64 eventSecond = convertTimestampToMatchSecond(timestampStr);
+
+        QString recordId = m_tableWidget->item(i, 1)->text();
+
+        // Yeni bir gol saptandıysa bir önceki aralığı kapatıp yeni aralığı başlatacağız
+        if (eventSecond > lastEventTimeSec) {
+            QString currentScoreText = QString("%1 - %2").arg(currentTeam1Score).arg(currentTeam2Score);
+            scoreFilters << QString("drawtext=text='%1':x=180:y=25:fontcolor=white:fontsize=20:enable='between(t,%2,%3)'")
+                                .arg(currentScoreText).arg(lastEventTimeSec).arg(eventSecond);
+
+            lastEventTimeSec = eventSecond;
+        }
+
+        if (recordId.contains("1")) currentTeam1Score++;
+        if (recordId.contains("2")) currentTeam2Score++;
+    }
+
+    // Maçın geri kalan son kısmı için son skoru sabitliyoruz
+    QString finalScoreText = QString("%1 - %2").arg(currentTeam1Score).arg(currentTeam2Score);
+    scoreFilters << QString("drawtext=text='%1':x=180:y=25:fontcolor=white:fontsize=20:enable='between(t,%2,%3)'")
+                        .arg(finalScoreText).arg(lastEventTimeSec).arg(totalDurationSec);
+
+    filterString += scoreFilters.join(",");
+
+    // 3. FFmpeg Sürecini Başlatma
+    QStringList arguments;
+    arguments << "-i"    << inputVideoPath
+              << "-vf"   << filterString
+              << "-c:v"  << "libx264"
+              << "-preset" << "ultrafast"
+              << "-crf"  << "26"
+              << "-c:a"  << "copy"
+              << "-y"
+              << outputVideoPath;
+
+    qInfo() << "Full maç üzerine dinamik scoreboard basılıyor... Bu işlem biraz sürebilir.";
+
+    // 🌟 --- MODAL POP-UP (YÜKLENİYOR PENCERESİ) KURULUMU ---
+    m_loadingDialog = new QDialog(this);
+    m_loadingDialog->setWindowTitle("Video Processing...");
+
+    // 1. UI'a dokunmayı kesin olarak engelle (Modal Kilidi)
+    m_loadingDialog->setModal(true);
+
+    // 2. Kullanıcının pencereyi kapatma (X) butonuna basarak kilidi delmesini engelle
+    m_loadingDialog->setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::CustomizeWindowHint);
+
+    // 3. İçerik Düzeni
+    QVBoxLayout *dialogLayout = new QVBoxLayout(m_loadingDialog);
+
+    QLabel *loadingLabel = new QLabel("Full match merging with scoreboard...\nPlease wait,This process may take some times.", m_loadingDialog);
+    loadingLabel->setAlignment(Qt::AlignCenter);
+    dialogLayout->addWidget(loadingLabel);
+
+    // 4. Şık bir yükleniyor barı (Sonsuz döngü / Marquee modu)
+    QProgressBar *progressBar = new QProgressBar(m_loadingDialog);
+    progressBar->setRange(0, 0); // Minimum ve maksimumu 0 yaparsak bar sürekli sağa sola kayar
+    dialogLayout->addWidget(progressBar);
+
+    m_loadingDialog->setLayout(dialogLayout);
+    m_loadingDialog->resize(450, 130);
+
+    // 5. Pencereyi göster (show() kullandık, böylece aşağıdaki FFmpeg kodu tetiklenebilecek)
+    m_loadingDialog->show();
+    // ----------------------------------------------------
+
+    // UI kilitlenmesin diye bir loading bar gösterebilir veya butonu kapatabilirsin
+    m_mainVideoButton->setEnabled(false);
+
+
+
+    m_ffmpegProcess->start("ffmpeg", arguments);
 }

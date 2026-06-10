@@ -17,6 +17,10 @@
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QGraphicsVideoItem>
+
+#include <QDialog>
+#include <QProgressBar>
+
 #include "recorddialog.h"
 
 // Her bir DB kaydını temsil eden yapı
@@ -46,6 +50,8 @@ public:
 
     // Videoyu kesmeden sadece belirli aralıkta oynatacak fonksiyon
     void playVideoSegment(int startSecond);
+
+    void bakeScoreboardToFullMatch(const QString &inputVideoPath, const QString &outputVideoPath);
 
 private slots:
     void onCutButtonClicked();
@@ -83,6 +89,7 @@ private:
     QLabel *m_totalTimeLabel;
 
     QString formatTime(qint64 milliseconds);
+    int convertTimestampToMatchSecond(QString timestampStr);
 
     // İşlem Elemanları
     QProcess *m_ffmpegProcess;
@@ -100,6 +107,19 @@ private:
     quint64 m_startPositionMs;
 
     QString m_currentdate;
+
+    enum class FFmpegMode {
+        Idle,
+        Trim,          // Video kesme modu
+        BakeFullMatch  // Full maça scoreboard basma modu
+    };
+
+    FFmpegMode m_ffmpegMode = FFmpegMode::Idle; // Varsayılan durum
+    QString m_bakedFullMatchPath;              // Skorlu full maçın kaydedildiği yer
+
+
+    QDialog *m_loadingDialog = nullptr;
+
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
