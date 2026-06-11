@@ -386,8 +386,8 @@ QString videocutterwidget::calculateStartTime(const QString &dbTimestamp)
 
     QTime targetTime = targetDateTime.time();
 
-    // 2 dakika (120 saniye) geriye git
-    QTime startTime = targetTime.addSecs(-120);
+    // 30 saniye geriye git
+    QTime startTime = targetTime.addSecs(-30);
 
     // Eğer video başından daha geriye düşerse 00:00:00 yap
     if (targetTime.hour() == 0 && targetTime.minute() < 2) {
@@ -548,12 +548,17 @@ void videocutterwidget::onAddRecordButtonClicked()
         checkItem->setCheckState(Qt::Unchecked);
         m_tableWidget->setItem(currentRowCount, 0, checkItem);
 
-        // Sütun 1: Kayıt ID
+        // Sütun 1: Team ID
+        QTableWidgetItem *teamIdItem = new QTableWidgetItem("Empty");
+        teamIdItem->setFlags(teamIdItem->flags() ^ Qt::ItemIsEditable); // Düzenlenemez yap
+        m_tableWidget->setItem(currentRowCount, 1, teamIdItem);
+
+        // Sütun 2: Kayıt ID
         QTableWidgetItem *idItem = new QTableWidgetItem(newId);
         idItem->setFlags(idItem->flags() ^ Qt::ItemIsEditable); // Düzenlenemez yap
-        m_tableWidget->setItem(currentRowCount, 1, idItem);
+        m_tableWidget->setItem(currentRowCount, 2, idItem);
 
-        // Sütun 2: Zaman
+        // Sütun 3: Zaman
         QTableWidgetItem *timeItem = new QTableWidgetItem(m_currentdate+":"+newTimestamp);
         timeItem->setFlags(timeItem->flags() ^ Qt::ItemIsEditable);
         m_tableWidget->setItem(currentRowCount, 3, timeItem);
