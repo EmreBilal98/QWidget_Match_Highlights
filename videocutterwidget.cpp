@@ -6,7 +6,7 @@
 #include <QHeaderView>
 
 #define TIMESTAMP_COL 3
-#define VIDEO_DURATION 4
+#define VIDEO_DURATION 1
 
 
 videocutterwidget::videocutterwidget(QWidget *parent): QWidget(parent)
@@ -219,9 +219,12 @@ void videocutterwidget::onFFmpegFinished(int exitCode, QProcess::ExitStatus exit
     m_mainVideoButton->setEnabled(true);
     m_cutButton->setEnabled(true);
 
+    FFmpegMode finishedMode = m_ffmpegMode;
+    m_ffmpegMode = FFmpegMode::Idle;
+
     if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
 
-        if (m_ffmpegMode == FFmpegMode::BakeFullMatch) {
+        if (finishedMode == FFmpegMode::BakeFullMatch) {
             qDebug() << "Full maç başarıyla scoreboard ile işlendi! Oynatılıyor:" << m_bakedFullMatchPath;
 
             m_mediaPlayer->setSource(QUrl::fromLocalFile(m_bakedFullMatchPath));
@@ -232,19 +235,34 @@ void videocutterwidget::onFFmpegFinished(int exitCode, QProcess::ExitStatus exit
             m_addRecordButton->setEnabled(true);
             m_playPauseButton->setText("Pause");
         }
-        else if (m_ffmpegMode == FFmpegMode::Trim) {
+        else if (finishedMode == FFmpegMode::Trim) {
         qDebug() << "Video başarıyla kesildi! Oynatılıyor:" << m_outputPath;
 
 
         // Bir sonraki videoya geç (Kuyruk boşalana kadar kendi kendini çağırır)
         processNextInQueue();
         }
+        else if(finishedMode == FFmpegMode::ConcatHighlights){
+            qDebug() << "Maç özeti başarıyla oluşturuldu!";
+
+            // Temizlik: Oluşturduğumuz geçici txt listesini diskten silelim
+            QFileInfo fullMatchInfo(m_bakedFullMatchPath);
+            QFile::remove(fullMatchInfo.absolutePath() + "/trim/summary_list.txt");
+
+
+            m_trimmedFilesPool.clear();
+            m_cutButton->setEnabled(true);
+
+            QMessageBox::information(this, "Highlights ready! ",
+                                     "Match highlights and important section videos are ready!");
+
+        }
 
     } else {
         qDebug() << "FFmpeg hatası oluştu! Hata kodu:" << m_ffmpegProcess->readAllStandardError();
     }
 
-    m_ffmpegMode = FFmpegMode::Idle;
+    //m_ffmpegMode = FFmpegMode::Idle;
 }
 
 void videocutterwidget::handlePositionChanged(qint64 position)
@@ -317,8 +335,9 @@ int videocutterwidget::convertTimestampToMatchSecond(QString timestampStr)
 void videocutterwidget::processNextInQueue()
 {
     if (m_processingQueue.isEmpty()) {
-        m_cutButton->setEnabled(true);
-        QMessageBox::information(this, "Başarılı", "Seçilen tüm videolar başarıyla kesildi ve kaydedildi!");
+        //m_cutButton->setEnabled(true);
+        //QMessageBox::information(this, "Başarılı", "Seçilen tüm videolar başarıyla kesildi ve kaydedildi!");
+        createMatchSummary();
         return;
     }
 
@@ -344,6 +363,7 @@ void videocutterwidget::processNextInQueue()
     QFileInfo pathInfo(Path);
     QString outputPath = pathInfo.absolutePath()+"/trim/" + cleanId +"_"+ newFormat +"_kesilmis.mp4";
     qInfo()<<"outputpath:"<<outputPath;
+    m_trimmedFilesPool.append(outputPath);
 
     QStringList arguments;
     arguments << "-ss" << startTime
@@ -461,14 +481,17 @@ void videocutterwidget::onCutButtonClicked()
         return;
     }
 
+    m_trimmedFilesPool.clear();
     m_processingQueue.clear();
 
     // Tabloyu tara ve "Checked" olanları kuyruğa ekle
     for (int i = 0; i < m_tableWidget->rowCount(); ++i) {
         if (m_tableWidget->item(i, 0)->checkState() == Qt::Checked) {
             VideoRecord record;
-            record.id = m_tableWidget->item(i, 1)->text();
-            record.timestamp = m_tableWidget->item(i, 2)->text();
+            record.teamID=m_tableWidget->item(i, 1)->text();
+            record.id = m_tableWidget->item(i, 2)->text();
+            record.timestamp = m_tableWidget->item(i, 3)->text();
+            qInfo()<<"seelected records:"<<record.id;
             m_processingQueue.enqueue(record);
         }
     }
@@ -506,8 +529,6 @@ void videocutterwidget::onAddRecordButtonClicked()
     // 1. Dialog nesnesini oluşturuyoruz
     RecordDialog dialog(this);
 
-    // 2. Dialogu "Modal" (Ana ekranı kilitleyecek şekilde) açıyoruz
-    // exec() fonksiyonu, kullanıcı Kaydet veya İptal diyene kadar kodu burada bekletir.
     if (dialog.exec() == QDialog::Accepted) {
         // Kullanıcı "Kaydet" butonuna bastıysa buraya girer
         QString newId = dialog.getId();
@@ -535,7 +556,7 @@ void videocutterwidget::onAddRecordButtonClicked()
         // Sütun 2: Zaman
         QTableWidgetItem *timeItem = new QTableWidgetItem(m_currentdate+":"+newTimestamp);
         timeItem->setFlags(timeItem->flags() ^ Qt::ItemIsEditable);
-        m_tableWidget->setItem(currentRowCount, 2, timeItem);
+        m_tableWidget->setItem(currentRowCount, 3, timeItem);
 
         qInfo() << "Tabloya elle yeni kayıt eklendi:" << newId << "-" << newTimestamp;
     } else {
@@ -635,5 +656,52 @@ void videocutterwidget::bakeScoreboardToFullMatch(const QString &inputVideoPath,
 
 
 
+    m_ffmpegProcess->start("ffmpeg", arguments);
+}
+
+void videocutterwidget::createMatchSummary()
+{
+    // Havuzda kesilmiş video yoksa (kullanıcı hiçbirini seçmediyse) süreci bitir
+    if (m_trimmedFilesPool.isEmpty()) {
+        m_cutButton->setEnabled(true);
+        return;
+    }
+
+    qInfo() << "Kesilen kliplerden tek bir özet videosu hazırlanıyor...";
+    qInfo() <<"scorelu maç path:"<<m_bakedFullMatchPath;
+    // 1. FFmpeg Concat için txt dosyası oluşturulacak dizini belirle
+    QFileInfo fullMatchInfo(m_bakedFullMatchPath);
+    QString trimDir = fullMatchInfo.absolutePath() + "/trim";
+    QString fileBaseName=fullMatchInfo.baseName().replace("_with_scoreboard", "");
+    QString txtFilePath = trimDir + "/summary_list.txt";
+    QString finalSummaryPath = trimDir + "/" + fileBaseName + "_highlihts.mp4";
+
+    // 2. Txt dosyasının içine klipleri FFmpeg formatında yazdır
+    QFile txtFile(txtFilePath);
+    if (txtFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream stream(&txtFile);
+        for (const QString &filePath : m_trimmedFilesPool) {
+            // FFmpeg boşluklu yollarda patlamasın diye tek tırnak içine alıyoruz
+            stream << "file '" << filePath << "'\n";
+        }
+        txtFile.close();
+    } else {
+        qWarning() << "Özet listesi txt dosyası oluşturulamadı!";
+        m_cutButton->setEnabled(true);
+        return;
+    }
+
+    // 3. Muazzam hızlı çalışan FFmpeg Concat Demuxer Komutu
+    QStringList arguments;
+    arguments << "-f" << "concat"
+              << "-safe" << "0"
+              << "-i" << txtFilePath
+              << "-c" << "copy" // Yeniden render YOK, sadece kopyalayıp yapıştırıyor!
+              << "-y"
+              << finalSummaryPath;
+
+    m_ffmpegMode = FFmpegMode::ConcatHighlights;
+
+    // Eğer full maçtaki gibi loading pop-up çıkartmak istersen buraya m_loadingDialog kodlarını da ekleyebilirsin
     m_ffmpegProcess->start("ffmpeg", arguments);
 }

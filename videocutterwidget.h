@@ -51,7 +51,7 @@ public:
     // Videoyu kesmeden sadece belirli aralıkta oynatacak fonksiyon
     void playVideoSegment(int startSecond);
 
-    void bakeScoreboardToFullMatch(const QString &inputVideoPath, const QString &outputVideoPath);
+
 
 private slots:
     void onCutButtonClicked();
@@ -111,11 +111,16 @@ private:
     enum class FFmpegMode {
         Idle,
         Trim,          // Video kesme modu
-        BakeFullMatch  // Full maça scoreboard basma modu
+        BakeFullMatch,  // Full maça scoreboard basma modu
+        ConcatHighlights //  özet oluşturma modu
     };
 
     FFmpegMode m_ffmpegMode = FFmpegMode::Idle; // Varsayılan durum
     QString m_bakedFullMatchPath;              // Skorlu full maçın kaydedildiği yer
+    QList<QString> m_trimmedFilesPool;         //kesilen videoların dosya yolları
+
+    void bakeScoreboardToFullMatch(const QString &inputVideoPath, const QString &outputVideoPath);
+    void createMatchSummary();
 
 
     QDialog *m_loadingDialog = nullptr;
