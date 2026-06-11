@@ -140,11 +140,27 @@ void Server::loginReply(QNetworkReply *reply)
         }
         else{
             qWarning() << "token yok!";
+            QMessageBox::warning(nullptr, "Giriş Başarısız",
+                                 "Kullanıcı adı veya şifre hatalı!\nLütfen bilgilerinizi kontrol edip tekrar deneyin.");
+
         }
 
     } else {
         qDebug() << "Giriş Başarısız! Hata kodu:" << reply->error();
         qDebug() << "Sunucu Yanıtı:" << reply->readAll();
+
+        QString errorDetails = reply->errorString();
+        QString userFriendlyMessage = "Giriş yapılırken bir ağ hatası oluştu.\n\n";
+
+        if (reply->error() == QNetworkReply::ConnectionRefusedError) {
+            userFriendlyMessage += "Hata: Sunucuya bağlanılamadı.\nFastAPI backend veya Nginx sunucunuzun açık olduğundan emin olun.";
+        } else if (reply->error() == QNetworkReply::AuthenticationRequiredError || reply->error() == QNetworkReply::ContentAccessDenied) {
+            userFriendlyMessage += "Hata: Yetkisiz erişim.\nKullanıcı adı veya şifreniz sistem tarafından doğrulanmadı.";
+        } else {
+            userFriendlyMessage += QString("Detay: %1 (Kod: %2)").arg(errorDetails).arg(reply->error());
+        }
+
+        QMessageBox::critical(nullptr, "Bağlantı Hatası", userFriendlyMessage);
     }
     reply->deleteLater();
 }
@@ -163,6 +179,8 @@ void Server::SignUpReply(QNetworkReply *reply)
         }
         else{
             qWarning() << "giriş başarısız isim yok!";
+            QMessageBox::warning(nullptr, "Kayıt Uyarısı",
+                                 "kullanıcı adı alınamadı.");
         }
 
         int id = responseObj["id"].toInt();
@@ -177,7 +195,27 @@ void Server::SignUpReply(QNetworkReply *reply)
 
     } else {
         qDebug() << "Giriş Başarısız! Hata kodu:" << reply->error();
-        qDebug() << "Sunucu Yanıtı:" << reply->readAll();
+        QByteArray errorData = reply->readAll();
+        qDebug() << "Sunucu Yanıtı:" << errorData;
+
+        QString userFriendlyMessage = "Registration fault.\n\n";
+
+        QJsonDocument errorDoc = QJsonDocument::fromJson(errorData);
+        if (!errorDoc.isNull() && errorDoc.isObject() && errorDoc.object().contains("detail")) {
+
+            QString detail = errorDoc.object()["detail"].toString();
+
+            userFriendlyMessage += QString("Reason: %1").arg(detail);
+        }
+        else {
+            if (reply->error() == QNetworkReply::ConnectionRefusedError) {
+                userFriendlyMessage += "Error: Could not connect to the server. Please check that your backend service is running.";
+            } else {
+                userFriendlyMessage += QString("Detaiil: %1 (Code: %2)").arg(reply->errorString()).arg(reply->error());
+            }
+        }
+
+        QMessageBox::critical(nullptr, "Registration Failed", userFriendlyMessage);
     }
     reply->deleteLater();
 }

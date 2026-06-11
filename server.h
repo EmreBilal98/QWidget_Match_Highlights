@@ -11,6 +11,7 @@
 #include <QJsonArray>
 #include <QJsonValue>
 #include <QUrlQuery>
+#include <QMessageBox>
 
 class Server:public QObject
 {

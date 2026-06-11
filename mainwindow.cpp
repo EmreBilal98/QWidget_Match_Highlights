@@ -27,6 +27,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_server,&Server::getId,this,&MainWindow::getId);
     ui->date_lineEdit->setInputMask("99/99/99;_");
 
+    ui->linePassword->setEchoMode(QLineEdit::Password);
+    ui->lineEdit_suPass->setEchoMode(QLineEdit::Password);
+    ui->lineEdit_suPassVerify->setEchoMode(QLineEdit::Password);
 
     connect(ui->date_lineEdit,&QLineEdit::textChanged,this,&MainWindow::makeDate);
     connect(ui->time_spinbox,&QSpinBox::valueChanged,this,&MainWindow::makeDate);
